@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>冰箱食物追踪</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Supabase客户端库 -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- 顶部导航栏 -->
+        <header class="header">
+            <h1>🧊 冰箱食物追踪</h1>
+            <div class="header-actions">
+                <button id="settingsBtn" class="btn btn-secondary">⚙️ 设置</button>
+            </div>
+        </header>
+
+        <!-- 过期提醒横幅 -->
+        <div id="reminderBanner" class="reminder-banner" style="display: none;">
+            <span id="reminderMessage"></span>
+            <button id="closeReminderBtn" class="btn-close">×</button>
+        </div>
+
+        <!-- 主内容区 -->
+        <div class="main-content">
+            <!-- 左侧：聊天区域 -->
+            <div class="chat-section">
+                <div class="section-header">
+                    <h2>💬 AI助手</h2>
+                    <button id="manualAddBtn" class="btn btn-primary">➕ 手动添加</button>
+                </div>
+                
+                <!-- 对话队列显示框 -->
+                <div id="chatMessages" class="chat-messages">
+                    <div class="welcome-message">
+                        <p>👋 你好！我可以帮你管理冰箱里的食物。</p>
+                        <p>试试说："我在上层放了一个苹果，3天后过期"</p>
+                    </div>
+                </div>
+
+                <!-- 消息输入框 -->
+                <div class="chat-input-container">
+                    <input 
+                        type="text" 
+                        id="messageInput" 
+                        class="chat-input" 
+                        placeholder="输入消息... (例如：我在中层放了一瓶牛奶，5天后过期)"
+                        disabled
+                    >
+                    <button id="sendBtn" class="btn btn-primary" disabled>发送</button>
+                </div>
+            </div>
+
+            <!-- 右侧：食物列表 -->
+            <div class="food-section">
+                <div class="section-header">
+                    <h2>📦 我的食物</h2>
+                    <div class="filter-controls">
+                        <select id="locationFilter" class="filter-select">
+                            <option value="">所有位置</option>
+                            <option value="上层">上层</option>
+                            <option value="中层">中层</option>
+                            <option value="下层">下层</option>
+                            <option value="抽屉">抽屉</option>
+                            <option value="门侧">门侧</option>
+                        </select>
+                        <input 
+                            type="text" 
+                            id="searchInput" 
+                            class="search-input" 
+                            placeholder="搜索食物..."
+                        >
+                    </div>
+                </div>
+
+                <!-- 食物列表 -->
+                <div id="foodList" class="food-list">
+                    <div class="empty-state">
+                        <p>📭 冰箱是空的</p>
+                        <p>通过AI助手或手动添加来记录食物吧！</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 设置面板（默认隐藏） -->
+    <div id="settingsPanel" class="settings-panel" style="display: none;">
+        <div class="settings-content">
+            <div class="settings-header">
+                <h2>⚙️ API配置</h2>
+                <button id="closeSettingsBtn" class="btn-close">×</button>
+            </div>
+            <form id="settingsForm" class="settings-form">
+                <div class="form-group">
+                    <label for="apiUrl">API地址</label>
+                    <input 
+                        type="text" 
+                        id="apiUrl" 
+                        class="form-input" 
+                        placeholder="https://api.example.com/v1/chat/completions"
+                        required
+                    >
+                </div>
+                <div class="form-group">
+                    <label for="apiKey">API密钥</label>
+                    <input 
+                        type="password" 
+                        id="apiKey" 
+                        class="form-input" 
+                        placeholder="sk-..."
+                        required
+                    >
+                </div>
+                <div class="form-group">
+                    <label for="modelName">模型名称</label>
+                    <input 
+                        type="text" 
+                        id="modelName" 
+                        class="form-input" 
+                        placeholder="gpt-3.5-turbo"
+                        required
+                    >
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">保存配置</button>
+                    <button type="button" id="cancelSettingsBtn" class="btn btn-secondary">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 手动添加表单模态框 -->
+    <div id="manualAddModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>➕ 手动添加食物</h2>
+                <button id="closeManualAddBtn" class="btn-close">×</button>
+            </div>
+            <form id="manualAddForm" class="manual-form">
+                <div class="form-group">
+                    <label for="foodName">食物名称 *</label>
+                    <input 
+                        type="text" 
+                        id="foodName" 
+                        class="form-input" 
+                        placeholder="例如：苹果"
+                        required
+                    >
+                </div>
+                <div class="form-group">
+                    <label for="foodLocation">储存位置 *</label>
+                    <select id="foodLocation" class="form-input" required>
+                        <option value="">请选择</option>
+                        <option value="上层">上层</option>
+                        <option value="中层">中层</option>
+                        <option value="下层">下层</option>
+                        <option value="抽屉">抽屉</option>
+                        <option value="门侧">门侧</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="storageDate">储存日期 *</label>
+                    <input 
+                        type="date" 
+                        id="storageDate" 
+                        class="form-input" 
+                        required
+                    >
+                </div>
+                <div class="form-group">
+                    <label for="expirationDate">过期日期</label>
+                    <input 
+                        type="date" 
+                        id="expirationDate" 
+                        class="form-input"
+                    >
+                </div>
+                <div class="form-group">
+                    <label for="quantity">数量</label>
+                    <input 
+                        type="number" 
+                        id="quantity" 
+                        class="form-input" 
+                        value="1" 
+                        min="1"
+                    >
+                </div>
+                <div class="form-group">
+                    <label for="notes">备注</label>
+                    <textarea 
+                        id="notes" 
+                        class="form-input" 
+                        rows="3" 
+                        placeholder="可选备注信息..."
+                    ></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary">添加</button>
+                    <button type="button" id="cancelManualAddBtn" class="btn btn-secondary">取消</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 加载指示器 -->
+    <div id="loadingIndicator" class="loading-indicator" style="display: none;">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- 脚本引入 -->
+    <script src="js/supabase-client.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/api-config.js"></script>
+    <script src="js/food-manager.js"></script>
+    <script src="js/reminders.js"></script>
+    <script src="js/chat.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
+
